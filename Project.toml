@@ -1,0 +1,15 @@
+name = "Landau"
+uuid = "5fb9f698-aa0b-11e8-3d94-87c774b35c7c"
+authors = ["louisponet <louisponet@gmail.com>"]
+version = "0.1.0"
+
+[deps]
+ForwardDiff = "f6369f11-7733-5829-9624-2563aa707210"
+JuAFEM = "30d91d44-8115-11e8-1d28-c19a5ac16de8"
+LineSearches = "d3d80556-e9d4-5f37-9878-2ab0fcc64255"
+Literate = "98b081ad-f1c9-55d3-8b20-4c87d4299306"
+Optim = "429524aa-4258-5aef-a3af-852621145aeb"
+Reexport = "189a3867-3050-52da-a836-e630ba90ab69"
+SparseArrays = "2f01184e-e22b-5df5-ae63-d93ebab69eaf"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
+Tensors = "48a634ad-e948-5137-8d70-aa71f2a747f4"
