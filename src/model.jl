@@ -1,85 +1,40 @@
 import JuAFEM: vtk_save
-import ForwardDiff: GradientConfig, HessianConfig, Chunk
+import ForwardDiff: GradientConfig, HessianConfig, JacobianConfig, Chunk
+import ForwardDiff.DiffResults: HessianResult, DiffResult
 
-struct ModelParams{V, T}
-    α::V
-    C::T
-    G::T
-    Q::T
-    F::T
-end
-
-function ModelParams(α, G11, G12, G44, C11, C12, C44, Q11, Q12, Q44, F11, F12, F44)
-    q11 = C11*Q11 + 2C12*Q12
-    q12 = C11*Q12 + C12*(Q11 + Q12)
-    q44 = C44*Q44
-    V2T(p11, p12, p44) = Tensor{4, 3}((i,j,k,l) -> p11 * δ(i,j)*δ(k,l)*δ(i,k) + p12*δ(i,j)*δ(k,l)*(1 - δ(i,k)) + p44*δ(i,k)*δ(j,l)*(1 - δ(i,j)))
-    C = V2T(C11, C12, C44)
-    G = V2T(G11, G12, G44)
-    Q = V2T(q11, q12, q44)
-    F = V2T(F11, F12, F44)
-    ModelParams(α, C, G, Q, F)
-end
-
-mutable struct CellCache{CV <: NamedTuple, MP <: ModelParams, F <: Function, EX <: NamedTuple}
+mutable struct ThreadCache{T, DIM, CV <: NamedTuple, EX <: NamedTuple, GC <: GradientConfig, HC <: HessianConfig, EF <: Function, HR <: DiffResult}
+    indices   ::Vector{Int}
+    dofs      ::Vector{T}
+    gradient  ::Vector{T}
+    hessian   ::Matrix{T}
+    coords    ::Vector{Vec{DIM, T}}
     cellvalues::CV
-    parameters::MP
-    potential ::F
     extradata ::EX
-    function CellCache(cellvalues::CV, parameters::MP, elfunction::Function, extra::EX) where {CV, MP, EX}
-        potfunc = x -> elfunction(x, cellvalues, parameters, extra)
-        return new{CV, MP, typeof(potfunc), EX}(cellvalues, parameters, potfunc, extra)
-    end
+    # cellcache        ::CC
+    gradconf  ::GC
+    hessconf  ::HC
+    # jacconf   ::JC
+    efunc     ::EF
+    hessresult::HR
+    # gfunc     ::GF
+end
+function ThreadCache(dpc::Int, nodespercell::Int, cellvalues, extradata, element_energy)
+    indices  = zeros(Int, dpc)
+    dofs     = zeros(dpc)
+    gradient = zeros(dpc)
+    hessian  = zeros(dpc, dpc)
+    coords   = zeros(Vec{3}, nodespercell)
+    # cellcache        = CellCache(args...)
+    efunc = x -> element_energy(x, cellvalues, extradata)
+    gradconf = GradientConfig(efunc, zeros(dpc), Chunk{12}())
+
+    hessresult = HessianResult(zeros(dpc))
+    hessconf = HessianConfig(efunc, hessresult, zeros(dpc), Chunk{6}())
+    # hessconf = HessianConfig(efunc, zeros(dpc), Chunk{12}())
+    return ThreadCache(indices, dofs, gradient, hessian, coords, cellvalues, extradata, gradconf, hessconf, efunc, hessresult)
+    # return ThreadCache(indices, dofs, gradient, hessian, coords, cellvalues, extradata, gradconf, jacconf, efunc, gfunc)
 end
 
-struct ThreadCache{T, DIM, CC <: CellCache, GC <: GradientConfig, HC <: HessianConfig}
-    element_indices  ::Vector{Int}
-    element_dofs     ::Vector{T}
-    element_gradient ::Vector{T}
-    element_hessian  ::Matrix{T}
-    cellcache        ::CC
-    gradconf         ::GC
-    hessconf         ::HC
-    element_coords   ::Vector{Vec{DIM, T}}
-end
-function ThreadCache(dpc::Int, nodespercell,  args...)
-    element_indices  = zeros(Int, dpc)
-    element_dofs     = zeros(dpc)
-    element_gradient = zeros(dpc)
-    element_hessian  = zeros(dpc, dpc)
-    cellcache        = CellCache(args...)
-    gradconf         = GradientConfig(nothing, zeros(dpc), Chunk{12}())
-    hessconf         = HessianConfig(nothing, zeros(dpc), Chunk{12}())
-    coords           = zeros(Vec{3}, nodespercell)
-    return ThreadCache(element_indices, element_dofs, element_gradient, element_hessian, cellcache, gradconf, hessconf, coords )
-end
-
-
-function periodicmap_dim3(dofhandler, faceset1, faceset2, edgecoord1, edgecoord2)
-    mid = div(ndofs_per_cell(dofhandler), 2)
-    dofdict_ = Dict{Int, Int}()
-    ci1 = CellIterator(dofhandler)
-    ci2 = deepcopy(ci1)
-    dofs1 = zeros(Int, ndofs_per_cell(dofhandler))
-    dofs2 = zeros(Int, ndofs_per_cell(dofhandler))
-    for (cellidx1, faceidx1) in getfaceset(dofhandler.grid, faceset1), (cellidx2, faceidx2) in getfaceset(dofhandler.grid, faceset2)
-        reinit!(ci1, cellidx1)
-        reinit!(ci2, cellidx2)
-        for (ic1, coord1) in enumerate(ci1.coords), (ic2, coord2) in enumerate(ci2.coords)
-            if coord1[1] == coord2[1] && coord1[2] == coord2[2] && coord1[3] == edgecoord1 && coord2[3] == edgecoord2
-                celldofs!(dofs1, ci1)
-                celldofs!(dofs2, ci2)
-                for (r1, r2) in zip((ic1-1)*3+1:ic1*3, (ic2-1)*3+1:ic2*3)
-                    dofdict_[dofs1[r1]] = dofs2[r2]
-                end
-                for (r1, r2) in zip(mid+(ic1-1)*3+1:mid+ic1*3, mid+(ic2-1)*3+1:mid+ic2*3)
-                    dofdict_[dofs1[r1]] = dofs2[r2]
-                end
-            end
-        end
-    end
-    dofdict_
-end
 
 mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: ThreadCache}
     dofs          ::Vector{T}
@@ -89,28 +44,50 @@ mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: T
     threadcaches  ::Vector{TC}
 end
 
-function LandauModel(parameters::ModelParams, fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, element_function;
-                     boundaryconds = [], startingconditions = nothing, elgeom = nothing, gridgeom = nothing, lagrangeorder = 1, quadratureorder= 2) where {DIM, T}
+function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, element_function;
+                     boundaryconds = [], elgeom = nothing, gridgeom = nothing, lagrangeorder = 1, quadratureorder= 2) where {DIM, T}
     if elgeom == nothing; elgeom = RefTetrahedron end
-    if gridgeom == nothing; gridgeom = DIM==3 ? Tetrahedron : Triangle end
+    if gridgeom == nothing
+        if DIM==3
+            if lagrangeorder == 2
+                gridgeom = QuadraticTetrahedron
+            else
+                gridgeom = Tetrahedron
+            end
+        else
+            gridgeom = Triangle
+        end
+    end
 
     grid = generate_grid(gridgeom, gridsize, left, right)
+    # grid = generate_grid(Tetrahedron, gridsize, left, right)
     bleirgh, colors = JuAFEM.create_coloring(grid)
 
     qr  = QuadratureRule{DIM, elgeom}(quadratureorder)
-    cvu = CellVectorValues(qr, Lagrange{DIM, elgeom, lagrangeorder}())
-    cvP = CellVectorValues(qr, Lagrange{DIM, elgeom, lagrangeorder}())
+    interpolation = Lagrange{DIM, elgeom, lagrangeorder}()
+    geominterp = Lagrange{DIM, elgeom, lagrangeorder}()
+    # cvu = CellVectorValues(qr, interpolation)
+    # cvP = CellVectorValues(qr, interpolation)
     dh = DofHandler(grid)
     for f in fields
-        push!(dh, f[1], f[2])
+        # push!(dh, f[1], f[2])
+        push!(dh, f[1], f[2], interpolation)
     end
+
     close!(dh)
+    dofvec = zeros(ndofs(dh))
 
-    up = zeros(ndofs(dh))
-    if startingconditions != nothing
-        startingconditions(up, dh)
+    uranges = UnitRange[]
+    cvs = CellVectorValues[]
+    for field in fields
+        push!(uranges, dof_range(dh, field[1]))
+        push!(cvs, CellVectorValues(qr, interpolation, geominterp))
+        if length(field) == 3
+            startingconditions!(dofvec, dh, field[1], field[3])
+        end
     end
-
+    ranges = NamedTuple{(dh.field_names...,)}(uranges)
+    cellvalues = NamedTuple{(dh.field_names...,)}(cvs)
 
     bdcs_ = ConstraintHandler(dh)
     for bdc in boundaryconds
@@ -119,13 +96,23 @@ function LandauModel(parameters::ModelParams, fields, gridsize, left::Vec{DIM, T
     close!(bdcs_)
     JuAFEM.update!(bdcs_, 0.0)
 
-    apply!(up, bdcs_)
+    apply!(dofvec, bdcs_)
     dpc = ndofs_per_cell(dh)
     cpc = length(dh.grid.cells[1].nodes)
     #TODO generalize
-    caches = [ThreadCache(dpc, cpc, (u=copy(cvu), p=copy(cvP)), parameters, element_function, (force=zero(Vec{3, T}),)) for t=1:Threads.nthreads()]
-    LandauModel(up, dh, bdcs_, colors, caches)
+
+
+    caches = [ThreadCache(dpc, cpc, deepcopy(cellvalues), (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges), element_function) for t=1:Threads.nthreads()]
+    LandauModel(dofvec, dh, bdcs_, colors, caches)
 end
+
+#To create a new model using everything from the old one except for the element_potential with the params already set
+@export LandauModel(model::LandauModel, element_potential::Function) =
+	LandauModel(model.dofs,
+                model.dofhandler,
+                model.boundaryconds,
+                model.threadindices,
+                [ThreadCache(length(t.dofs), length(t.coords), t.cellvalues, t.extradata, element_potential) for t in model.threadcaches])
 
 function vtk_save(path, model::LandauModel, up=model.dofs)
     vtkfile = vtk_grid(path, model.dofhandler)
