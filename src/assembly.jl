@@ -66,35 +66,35 @@ function reinitEdep!(cache::ThreadCache{T, DIM} where T, nodeids, Edep) where DI
     end
 end
 
-function F(dofvector::Vector{T}, model, Edep) where T
-    outs  = [zero(T) for t=1:nthreads()]
-    @assemble! begin
-        reinitEdep!(cache, nodeids, Edep)
-        # force!(cache, mean(cache.coords), offset, forceconstant)
-        outs[threadid()] += cache.efunc(eldofs)
-    end
-    sum(outs)
-end
+# function F(dofvector::Vector{T}, model, Edep) where T
+#     outs  = [zero(T) for t=1:nthreads()]
+#     @assemble! begin
+#         reinitEdep!(cache, nodeids, Edep)
+#         # force!(cache, mean(cache.coords), offset, forceconstant)
+#         outs[threadid()] += cache.efunc(eldofs)
+#     end
+#     sum(outs)
+# end
 
-function ∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::LandauModel{T}, Edep) where {T}
-    fill!(∇f, zero(T))
-    @assemble! begin
-        reinitEdep!(cache, nodeids, Edep)
-        # force!(cache, mean(cache.coords), offset, forceconstant)
-        gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
-        # cache.gfunc(eldofs)
-        @inbounds assemble!(∇f, cache.indices, cache.gradient)
-    end
-end
-function ∇²F!(∇²f::SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}, Edep) where T
-    assemblers = [start_assemble(∇²f) for t=1:nthreads()]
-    @assemble! begin
-        reinitEdep!(cache, nodeids, Edep)
-        # force!(cache, mean(cache.coords), offset, forceconstant)
-        ForwardDiff.hessian!(cache.hessresult, cache.efunc, eldofs, cache.hessconf)
-        # @time ForwardDiff.hessian!(cache.hessian, cache.efunc, eldofs, cache.hessconf)
-        # ForwardDiff.jacobian!(cache.hessian, x->gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf), eldofs, cache.jacconf, Val{false}())
-        # ForwardDiff.jacobian!(cache.hessian, cache.gfunc, eldofs, cache.jacconf, Val{false}())
-        @inbounds assemble!(assemblers[threadid()], cache.indices, DiffResults.hessian(cache.hessresult))
-    end
-end
+# function ∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::LandauModel{T}, Edep) where {T}
+#     fill!(∇f, zero(T))
+#     @assemble! begin
+#         reinitEdep!(cache, nodeids, Edep)
+#         # force!(cache, mean(cache.coords), offset, forceconstant)
+#         gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
+#         # cache.gfunc(eldofs)
+#         @inbounds assemble!(∇f, cache.indices, cache.gradient)
+#     end
+# end
+# function ∇²F!(∇²f::SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}, Edep) where T
+#     assemblers = [start_assemble(∇²f) for t=1:nthreads()]
+#     @assemble! begin
+#         reinitEdep!(cache, nodeids, Edep)
+#         # force!(cache, mean(cache.coords), offset, forceconstant)
+#         ForwardDiff.hessian!(cache.hessresult, cache.efunc, eldofs, cache.hessconf)
+#         # @time ForwardDiff.hessian!(cache.hessian, cache.efunc, eldofs, cache.hessconf)
+#         # ForwardDiff.jacobian!(cache.hessian, x->gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf), eldofs, cache.jacconf, Val{false}())
+#         # ForwardDiff.jacobian!(cache.hessian, cache.gfunc, eldofs, cache.jacconf, Val{false}())
+#         @inbounds assemble!(assemblers[threadid()], cache.indices, DiffResults.hessian(cache.hessresult))
+#     end
+# end
