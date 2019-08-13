@@ -1,7 +1,10 @@
 δ(i, j) = i == j ? one(i) : zero(i)
-gaussian(x::Vec{DIM}, x0::Vec{DIM}, σ²) where DIM = 1/(2π * σ²)^(DIM/2) * ℯ^(-norm(x-x0)^2 / (2σ²))
 
+voigt_to_tensor(p11, p12, p44) =
+	Tensor{4, 3}((i,j,k,l) -> p11 * δ(i,j)*δ(k,l)*δ(i,k) + p12*δ(i,j)*δ(k,l)*(1 - δ(i,k)) + p44*δ(i,k)*δ(j,l)*(1 - δ(i,j)))
 
+gaussian(x::Vec{DIM}, x0::Vec{DIM}, σ²) where DIM =
+	1/(2π * σ²)^(DIM/2) * ℯ^(-norm(x-x0)^2 / (2σ²))
 
 function force!(clo, coords::Vec{3, T}, center::Vec{3, T}, prefac::T) where T
     if coords[2] == center[2]

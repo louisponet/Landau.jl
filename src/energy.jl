@@ -24,4 +24,5 @@ end
 @inline Fginzburg(∇P, G) = 0.5(∇P ⊡ G) ⊡ ∇P
 @inline Fflexoelectric(∇P, ε, F, C) = 0.5((∇P ⊡ F) ⊡ C) ⊡ ε
 
-F(P, ε, ∇P, params) = (((Felastic(ε, params.C) + Fginzburg(∇P, params.G)) + Flandau(P, params.α)) + Fflexoelectric(∇P, ε, params.F ,params.C)) + Felectrostriction(P, ε, params.Q)
+@inline F(P, ε, ∇P, α, G, C, Q, F) =
+	(((Felastic(ε, C) + Fginzburg(∇P, G)) + Flandau(P, α)) + Fflexoelectric(∇P, ε, F, C)) + Felectrostriction(P, ε, Q)
