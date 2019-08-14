@@ -36,9 +36,10 @@ function ThreadCache(dpc::Int, nodespercell::Int, cellvalues, extradata, element
 end
 
 
-mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: ThreadCache}
+mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: ThreadCache, DN <: DofNode}
     dofs          ::Vector{T}
     dofhandler    ::DH
+    dofnodes      ::Vector{DN}
     boundaryconds ::CH
     threadindices ::Vector{Vector{Int}}
     threadcaches  ::Vector{TC}
@@ -103,13 +104,15 @@ function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, el
 
 
     caches = [ThreadCache(dpc, cpc, deepcopy(cellvalues), (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges), element_function) for t=1:Threads.nthreads()]
-    LandauModel(dofvec, dh, bdcs_, colors, caches)
+	dnodes = dofnodes(dh)
+    LandauModel(dofvec, dh, dnodes, bdcs_, colors, caches)
 end
 
 #To create a new model using everything from the old one except for the element_potential with the params already set
 @export LandauModel(model::LandauModel, element_potential::Function) =
 	LandauModel(model.dofs,
                 model.dofhandler,
+                model.dofnodes,
                 model.boundaryconds,
                 model.threadindices,
                 [ThreadCache(length(t.dofs), length(t.coords), t.cellvalues, t.extradata, element_potential) for t in model.threadcaches])

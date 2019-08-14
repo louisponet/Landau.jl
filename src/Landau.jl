@@ -7,12 +7,12 @@ module Landau
     using Base.Threads
     using InlineExports
 
+    include("utils.jl")
     include("model.jl")
     include("assembly.jl")
     include("energy.jl")
     include("parameters.jl")
     include("startingconditions.jl")
-    include("utils.jl")
     include("grid.jl")
 
     export LandauModel
