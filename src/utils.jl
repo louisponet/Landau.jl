@@ -49,3 +49,6 @@ function dofnodes(dh::DofHandler{DIM, N, T} where N) where {DIM, T}
     end
     return out
 end
+
+@export alldofs(d::DofNode) = vcat(values(d.dofs)...)
+
