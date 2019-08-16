@@ -35,8 +35,9 @@ function ThreadCache(dpc::Int, nodespercell::Int, cellvalues, extradata, element
     # return ThreadCache(indices, dofs, gradient, hessian, coords, cellvalues, extradata, gradconf, jacconf, efunc, gfunc)
 end
 
+@export abstract type AbstractModel end
 
-mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: ThreadCache, DN <: DofNode}
+mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: ThreadCache, DN <: DofNode} <: AbstractModel
     dofs          ::Vector{T}
     dofhandler    ::DH
     dofnodes      ::Vector{DN}
@@ -122,3 +123,21 @@ function vtk_save(path, model::LandauModel, up=model.dofs)
     vtk_point_data(vtkfile, model.dofhandler, up)
     vtk_save(vtkfile)
 end
+
+@export landau_model(model::LandauModel) =
+	model
+
+@export dofs(model::AbstractModel) =
+	landau_model(model).dofs
+
+@export nodes(model::AbstractModel) =
+	landau_model(model).dofhandler.grid.nodes
+
+@export dofnodes(model::AbstractModel) =
+	landau_model(model).dofnodes
+
+@export dofhandler(model::AbstractModel) =
+	landau_model(model).dofhandler
+
+@export boundaryconds(model::AbstractModel) =
+	landau_model(model).boundaryconds
