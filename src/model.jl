@@ -80,10 +80,15 @@ function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, el
     dofvec = zeros(ndofs(dh))
 
     uranges = UnitRange[]
-    cvs = CellVectorValues[]
+    cvs = fields[1][2] > 1 ? CellVectorValues[] : CellScalarValues[] 
     for field in fields
         push!(uranges, dof_range(dh, field[1]))
-        push!(cvs, CellVectorValues(qr, interpolation, geominterp))
+        if field[2] > 1
+            push!(cvs, CellVectorValues(qr, interpolation, geominterp))
+        else
+            push!(cvs, CellScalarValues(qr, interpolation, geominterp))
+        end
+            
         if length(field) == 3
             startingconditions!(dofvec, dh, field[1], field[3])
         end
