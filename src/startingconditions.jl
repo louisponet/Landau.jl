@@ -10,6 +10,10 @@ function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
         for idx in 1:min(getnbasefunctions(interp), length(cell.nodes))
             coord = cell.coords[idx]
             noderange = (offset + (idx - 1) * dim + 1):(offset + idx * dim)
+            if fieldfunction(coord) === nothing
+                @show coord
+                @show fieldsym
+            end
             dofvector[globaldofs[noderange]] .= fieldfunction(coord)
         end
     end
