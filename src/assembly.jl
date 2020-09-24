@@ -1,4 +1,3 @@
-
 import ForwardDiff: gradient!, hessian!
 import Statistics: mean
 import SparseArrays: SparseMatrixCSC
@@ -20,14 +19,8 @@ macro assemble!(innerbody)
                 for j=1:length(cache.coords)
                     cache.coords[j] = dofhandler.grid.nodes[nodeids[j]].x
                 end
-
                 map(x -> reinit!(x, cache.coords), cache.cellvalues)
-                # for cv in cache.cellvalues
-                #     reinit!(cv, cache.coords)
-                # end
-
                 celldofs!(cache.indices, dofhandler, i)
-                # println(cache.indices)
                 for j=1:length(cache.dofs)
                     eldofs[j] = dofvector[cache.indices[j]]
                 end
@@ -36,6 +29,7 @@ macro assemble!(innerbody)
         end
     end)
 end
+
 function F(dofvector::Vector{T}, model) where T
     outs  = [zero(T) for t=1:nthreads()]
     @assemble! begin
@@ -51,6 +45,7 @@ function ∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::LandauModel{T}) whe
         @inbounds assemble!(∇f, cache.indices, cache.gradient)
     end
 end
+
 function ∇²F!(∇²f::SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}) where T
     assemblers = [start_assemble(∇²f) for t=1:nthreads()]
     @assemble! begin
@@ -59,6 +54,41 @@ function ∇²F!(∇²f::SparseMatrixCSC, dofvector::Vector{T}, model::LandauMod
     end
 end
 
+function force!(cache::ThreadCache{<:Any, DIM}, nodeids, force) where DIM
+    f = cache.extradata.force
+    for (i, id) in enumerate(nodeids)
+        for i_f = 1:DIM
+            f[(i-1)*DIM + i_f] = force[(id-1)*DIM + i_f]
+        end
+    end
+end
+
+function Landau.F(dofvector::Vector{T}, model, forcevec) where T
+    outs  = [zero(T) for t=1:nthreads()]
+    @assemble! begin
+        force!(cache, nodeids, forcevec)
+        outs[threadid()] += cache.efunc(eldofs)
+    end
+    sum(outs)
+end
+
+function Landau.∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::Landau.LandauModel{T}, forcevec) where {T}
+    fill!(∇f, zero(T))
+    @assemble! begin
+        force!(cache, nodeids, forcevec)
+        gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
+        @inbounds assemble!(∇f, cache.indices, cache.gradient)
+    end
+end
+
+function ∇²F!(∇²f::SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}, forcevec) where T
+    assemblers = [start_assemble(∇²f) for t=1:nthreads()]
+    @assemble! begin
+        force!(cache, nodeids, forcevec)
+        ForwardDiff.hessian!(cache.hessresult, cache.efunc, eldofs, cache.hessconf)
+        @inbounds assemble!(assemblers[threadid()], cache.indices, DiffResults.hessian(cache.hessresult))
+    end
+end
 
 function reinitEdep!(cache::ThreadCache{T, DIM} where T, nodeids, Edep) where DIM
     edepol = cache.extradata.Edepol

@@ -18,6 +18,7 @@ mutable struct ThreadCache{T, DIM, CV <: NamedTuple, EX <: NamedTuple, GC <: Gra
     hessresult::HR
     # gfunc     ::GF
 end
+
 function ThreadCache(dpc::Int, nodespercell::Int, cellvalues, extradata, element_energy)
     indices  = zeros(Int, dpc)
     dofs     = zeros(dpc)
@@ -107,8 +108,6 @@ function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, el
     dpc = ndofs_per_cell(dh)
     cpc = length(dh.grid.cells[1].nodes)
     #TODO generalize
-
-
     caches = [ThreadCache(dpc, cpc, deepcopy(cellvalues), (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges), element_function) for t=1:Threads.nthreads()]
 	dnodes = dofnodes(dh)
     LandauModel(dofvec, dh, dnodes, bdcs_, colors, caches)
@@ -146,3 +145,22 @@ end
 
 @export boundaryconds(model::AbstractModel) =
 	landau_model(model).boundaryconds
+
+function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
+    drange = JuAFEM.dof_range(dh, fieldsym)
+    offset = JuAFEM.field_offset(dh, fieldsym)
+    interp = dh.field_interpolations[JuAFEM.find_field(dh, fieldsym)]
+    dim    = JuAFEM.ndim(dh, fieldsym)
+    for cell in JuAFEM.CellIterator(dh)
+        globaldofs = JuAFEM.celldofs(cell)
+        for idx in 1:min(JuAFEM.getnbasefunctions(interp), length(cell.nodes))
+            coord = cell.coords[idx]
+            noderange = (offset + (idx - 1) * dim + 1):(offset + idx * dim)
+            if fieldfunction(coord) === nothing
+                @show coord
+                @show fieldsym
+            end
+            dofvector[globaldofs[noderange]] .= fieldfunction(coord)
+        end
+    end
+end

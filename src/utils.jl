@@ -1,27 +1,7 @@
 δ(i, j) = i == j ? one(i) : zero(i)
 
 voigt_to_tensor(p11, p12, p44) =
-	Tensor{4, 3}((i,j,k,l) -> p11 * δ(i,j)*δ(k,l)*δ(i,k) + p12*δ(i,j)*δ(k,l)*(1 - δ(i,k)) + p44*δ(i,k)*δ(j,l)*(1 - δ(i,j)))
-
-gaussian(x::Vec{DIM}, x0::Vec{DIM}, σ²) where DIM =
-	1/(2π * σ²)^(DIM/2) * ℯ^(-norm(x-x0)^2 / (2σ²))
-
-function force!(clo, coords::Vec{3, T}, center::Vec{3, T}, prefac::T) where T
-    if coords[2] == center[2]
-        crel  = coords-center
-        a²    = 10.0e-10^2
-        r²    = crel[1]^2  + crel[3]^2
-        clo.extradata = (force = r² <= a² ? -3prefac/(2pi*a²) * sqrt(1 - r²/a²) * Vec{3,T}((0.0, 1.0, 0.0)) : Vec{3, T}((0.0, 0.0, 0.0)),)
-    else
-        clo.extradata = (force = Vec{3, T}((0.0, 0.0, 0.0)),)
-    end
-end
-
-function force!(clo, coords::Vec{3, T}, center::T, prefac::T) where T
-#     clo.force = Vec{3, T}((0.0, 1e35, 0.0))
-    clo.extradata = (force=prefac*Vec{3, T}((0.0, gaussian(Vec{1, T}((coords[1],))*1.0e9,Vec{1, T}((center,)),0.5)*1e18ℯ^(-25.0+coords[2]*1e10), 0.0)), clo.extradata...)
-end
-
+	Tensor{4, 3}((i, j, k, l) -> p11 * δ(i, j)*δ(k, l)*δ(i, k) + p12*δ(i, j)*δ(k, l)*(1 - δ(i, k)) + p44*δ(i, k)*δ(j, l)*(1 - δ(i, j)))
 
 mutable struct DofNode{DIM, T, NT <: NamedTuple}
     coord       ::Vec{DIM, T}
@@ -50,5 +30,4 @@ function dofnodes(dh::DofHandler{DIM, N, T} where N) where {DIM, T}
     return out
 end
 
-@export alldofs(d::DofNode) = vcat(values(d.dofs)...)
-
+alldofs(d::DofNode) = vcat(values(d.dofs)...)
