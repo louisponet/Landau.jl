@@ -1,15 +1,15 @@
 module Landau
     using Reexport
-    @reexport using Tensors
     @reexport using JuAFEM
+    @reexport using Tensors
     using Base.Threads
-    using InlineExports
+    using LinearAlgebra
+    using SparseArrays
 
     include("utils.jl")
     include("model.jl")
     include("assembly.jl")
     include("energy.jl")
-    include("startingconditions.jl")
     include("grid.jl")
 
     export LandauModel

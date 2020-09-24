@@ -36,7 +36,7 @@ function ThreadCache(dpc::Int, nodespercell::Int, cellvalues, extradata, element
     # return ThreadCache(indices, dofs, gradient, hessian, coords, cellvalues, extradata, gradconf, jacconf, efunc, gfunc)
 end
 
-@export abstract type AbstractModel end
+abstract type AbstractModel end
 
 mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: ThreadCache, DN <: DofNode} <: AbstractModel
     dofs          ::Vector{T}
@@ -114,7 +114,7 @@ function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, el
 end
 
 #To create a new model using everything from the old one except for the element_potential with the params already set
-@export LandauModel(model::LandauModel, element_potential::Function) =
+LandauModel(model::LandauModel, element_potential::Function) =
 	LandauModel(model.dofs,
                 model.dofhandler,
                 model.dofnodes,
@@ -128,22 +128,22 @@ function vtk_save(path, model::LandauModel, up=model.dofs)
     vtk_save(vtkfile)
 end
 
-@export landau_model(model::LandauModel) =
+landau_model(model::LandauModel) =
 	model
 
-@export dofs(model::AbstractModel) =
+dofs(model::AbstractModel) =
 	landau_model(model).dofs
 
-@export nodes(model::AbstractModel) =
+nodes(model::AbstractModel) =
 	landau_model(model).dofhandler.grid.nodes
 
-@export dofnodes(model::AbstractModel) =
+dofnodes(model::AbstractModel) =
 	landau_model(model).dofnodes
 
-@export dofhandler(model::AbstractModel) =
+dofhandler(model::AbstractModel) =
 	landau_model(model).dofhandler
 
-@export boundaryconds(model::AbstractModel) =
+boundaryconds(model::AbstractModel) =
 	landau_model(model).boundaryconds
 
 function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
@@ -156,10 +156,6 @@ function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
         for idx in 1:min(JuAFEM.getnbasefunctions(interp), length(cell.nodes))
             coord = cell.coords[idx]
             noderange = (offset + (idx - 1) * dim + 1):(offset + idx * dim)
-            if fieldfunction(coord) === nothing
-                @show coord
-                @show fieldsym
-            end
             dofvector[globaldofs[noderange]] .= fieldfunction(coord)
         end
     end

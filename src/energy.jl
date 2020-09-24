@@ -1,4 +1,3 @@
-
 const α4thTuple{T} = NamedTuple{(:α1, :α11, :α12), NTuple{3, T}}
 function Flandau(P::Vec{3, T}, α::α4thTuple{T}) where T
     P2 = Vec{3, T}((P[1]^2, P[2]^2, P[3]^2))

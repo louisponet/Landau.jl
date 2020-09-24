@@ -1,7 +1,3 @@
-import ForwardDiff: gradient!, hessian!
-import Statistics: mean
-import SparseArrays: SparseMatrixCSC
-
 function precond!(f, r, val)
     for i in r
         f[i] *= val
@@ -41,12 +37,12 @@ end
 function ∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::LandauModel{T}) where {T}
     fill!(∇f, zero(T))
     @assemble! begin
-        gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
+        ForwardDiff.gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
         @inbounds assemble!(∇f, cache.indices, cache.gradient)
     end
 end
 
-function ∇²F!(∇²f::SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}) where T
+function ∇²F!(∇²f::SparseArrays.SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}) where T
     assemblers = [start_assemble(∇²f) for t=1:nthreads()]
     @assemble! begin
         ForwardDiff.hessian!(cache.hessresult, cache.efunc, eldofs, cache.hessconf)
@@ -76,12 +72,12 @@ function Landau.∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::Landau.Landa
     fill!(∇f, zero(T))
     @assemble! begin
         force!(cache, nodeids, forcevec)
-        gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
+        ForwardDiff.gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
         @inbounds assemble!(∇f, cache.indices, cache.gradient)
     end
 end
 
-function ∇²F!(∇²f::SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}, forcevec) where T
+function ∇²F!(∇²f::SparseArrays.SparseMatrixCSC, dofvector::Vector{T}, model::LandauModel{T}, forcevec) where T
     assemblers = [start_assemble(∇²f) for t=1:nthreads()]
     @assemble! begin
         force!(cache, nodeids, forcevec)

@@ -1,4 +1,3 @@
-using LinearAlgebra
 #Based on JuAFEM's generate_grid(Tetrahedron, ...) function
 function JuAFEM.generate_grid(::Type{QuadraticTetrahedron}, cells_per_dim::NTuple{3,Int}, left::Vec{3,T}=Vec{3}((-1.0,-1.0,-1.0)), right::Vec{3,T}=Vec{3}((1.0,1.0,1.0))) where {T}
     nodes_per_dim = (2 .* cells_per_dim) .+ 1
