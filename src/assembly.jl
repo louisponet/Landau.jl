@@ -8,6 +8,7 @@ function precond!(f, r, val)
         f[i] *= val
     end
 end
+
 macro assemble!(innerbody)
     esc(quote
         dofhandler = model.dofhandler
@@ -19,9 +20,11 @@ macro assemble!(innerbody)
                 for j=1:length(cache.coords)
                     cache.coords[j] = dofhandler.grid.nodes[nodeids[j]].x
                 end
-                for cellvalue in cache.cellvalues
-                    reinit!(cellvalue, cache.coords)
-                end
+
+                map(x -> reinit!(x, cache.coords), cache.cellvalues)
+                # for cv in cache.cellvalues
+                #     reinit!(cv, cache.coords)
+                # end
 
                 celldofs!(cache.indices, dofhandler, i)
                 # println(cache.indices)
