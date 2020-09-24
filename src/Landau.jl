@@ -5,7 +5,8 @@ module Landau
     using Base.Threads
     using LinearAlgebra
     using SparseArrays
-
+    using ForwardDiff
+    
     include("utils.jl")
     include("model.jl")
     include("assembly.jl")
