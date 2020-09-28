@@ -59,7 +59,7 @@ function force!(cache::ThreadCache{<:Any, DIM}, nodeids, force) where DIM
     end
 end
 
-function Landau.F(dofvector::Vector{T}, model, forcevec) where T
+function F(dofvector::Vector{T}, model, forcevec) where T
     outs  = [zero(T) for t=1:nthreads()]
     @assemble! begin
         force!(cache, nodeids, forcevec)
@@ -68,7 +68,7 @@ function Landau.F(dofvector::Vector{T}, model, forcevec) where T
     sum(outs)
 end
 
-function Landau.∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::Landau.LandauModel{T}, forcevec) where {T}
+function ∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::LandauModel{T}, forcevec) where {T}
     fill!(∇f, zero(T))
     @assemble! begin
         force!(cache, nodeids, forcevec)
