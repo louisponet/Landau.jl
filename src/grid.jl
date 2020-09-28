@@ -172,3 +172,89 @@ function plotStencil(stencil)
     end
     scatter(toplotx, toploty)
 end
+
+#Stencils for stuff like Edep, can be used for calculations that involve r-r'
+mutable struct Stencil{DIM, T, NT <: NamedTuple}
+    volume::T
+    connections::Vector{Int}
+    Rhat::Vector{Vec{DIM, T}}
+    R⁻³ ::Vector{T}
+    dofs::Vector{NT}
+end
+Base.zero(::Type{Stencil{DIM, T, NT}}) where {DIM, T, NT} = Stencil(zero(T), Int[], Vec{DIM, T}[], T[], NT[])
+
+function construct_stencils(dh::DofHandler{DIM, N, T} where N, gridsize, ranges, Rmax) where {DIM, T}
+    grid = dh.grid
+    stencils = [zero(Stencil{DIM, T, NamedTuple{(dh.field_names...,), Tuple{Vector{Int}, Vector{Int}}}}) for i=1:getnnodes(grid)]
+    cnodes = dofnodes(dh)
+    totnodes = getnnodes(grid)
+    linids = LinearIndices(gridsize)
+    cartids = CartesianIndices(gridsize)
+    steps  = getfield.(ranges, :step)
+    volume = abs(prod(grid.nodes[1].x-grid.nodes[linids[(1 .+ steps)...]].x))
+    for (i, n) in enumerate(grid.nodes)
+        radius = zero(T)
+        cid = cartids[i]
+        for r in [(r1, r2, r3) for r1=ranges[1], r2=ranges[2], r3 =ranges[3]]
+            if norm(r) == 0
+                continue
+            end
+            temp_cid = Tuple(cid) .+ r
+            if prod(temp_cid) > totnodes || any(temp_cid .> gridsize) || any(x -> x <= 0, temp_cid)
+                continue
+            end
+            temp_lid = linids[temp_cid...]
+            n2 = cnodes[temp_lid]
+            if norm(n2.coord - n.x) > Rmax
+                continue
+            end
+
+            Rrel = n.x - n2.coord
+            d = norm(Rrel)
+            push!(stencils[i].connections, temp_lid)
+            push!(stencils[i].R⁻³, d^-3)
+            push!(stencils[i].Rhat, Vec{3}((normalize(Rrel)...,)))
+            push!(stencils[i].dofs, cnodes[temp_lid].dofs)
+        end
+        stencils[i].volume = volume
+    end
+    return stencils
+end
+
+function construct_stencil(dh::DofHandler{DIM, N, T} where N, gridsize, ranges, Rmax) where {DIM, T}
+    grid = dh.grid
+    stencil = zero(Stencil{DIM, T, NamedTuple{(dh.field_names...,), Tuple{Vector{Int}, Vector{Int}}}})
+    cnodes = dofnodes(dh)
+    totnodes = getnnodes(grid)
+    linids = LinearIndices(gridsize)
+    cartids = CartesianIndices(gridsize)
+    midcartid = Int.(ceil.(gridsize ./ 2))
+    midlinid = linids[midcartid...]
+    node = cnodes[midlinid]
+    steps  = getfield.(ranges, :step)
+    volume = abs(prod(grid.nodes[1].x-grid.nodes[linids[(1 .+ steps)...]].x))
+    for r in [(r1, r2, r3) for r1=ranges[1], r2=ranges[2], r3 =ranges[3]]
+        if norm(r) == 0
+            continue
+        end
+        cartid = midcartid .+ r
+        if prod(cartid) > totnodes || any(cartid .> gridsize) || any(x -> x <= 0, cartid)
+            continue
+        end
+        linid = linids[cartid...]
+        n2 = cnodes[linid]
+        if norm(n2.coord - node.coord) > Rmax
+            continue
+        end
+
+        Rrel = node.coord - n2.coord
+        d    = norm(Rrel)
+        push!(stencil.connections, linid - midlinid)
+        push!(stencil.R⁻³, d^-3)
+        push!(stencil.Rhat, Vec{3}((normalize(Rrel)...,)))
+        push!(stencil.dofs, cnodes[linid].dofs)
+    end
+    stencil.volume = volume
+    return stencil
+end
+
