@@ -10,11 +10,9 @@ module Landau
     include("utils.jl")
     include("model.jl")
     include("assembly.jl")
-    include("energy.jl")
     include("grid.jl")
 
     export LandauModel
-    export Flandau, Fginzburg, Felastic, Felectrostriction, Fflexoelectric
     export F, ∇F!,∇²F!
     export startingconditions!
     export DofNode, dofnodes
