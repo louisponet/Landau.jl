@@ -149,12 +149,18 @@ boundaryconds(model::AbstractModel) =
 function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
     drange = JuAFEM.dof_range(dh, fieldsym)
     offset = JuAFEM.field_offset(dh, fieldsym)
+    n = ndofs_per_cell(dh)
+    t_dofs = [zeros(Int, n) for i=1:Threads.nthreads()]
+    t_coords = [zeros(Vec{3, Float64}, JuAFEM.nnodes(typeof(dh).parameters[2])) for i=1:Threads.nthreads()]
     interp = dh.field_interpolations[JuAFEM.find_field(dh, fieldsym)]
     dim    = JuAFEM.ndim(dh, fieldsym)
-    for cell in JuAFEM.CellIterator(dh)
-        globaldofs = JuAFEM.celldofs(cell)
-        for idx in 1:min(JuAFEM.getnbasefunctions(interp), length(cell.nodes))
-            coord = cell.coords[idx]
+    Threads.@threads for i = 1:length(dh.grid.cells)
+        cell = dh.grid.cells[i]
+        globaldofs = t_dofs[Threads.threadid()]
+        coords = t_coords[Threads.threadid()]
+        JuAFEM.celldofs!(globaldofs, dh, i)
+        JuAFEM.cellcoords!(coords, dh, i)
+        for (idx, coord) in enumerate(coords)
             noderange = (offset + (idx - 1) * dim + 1):(offset + idx * dim)
             dofvector[globaldofs[noderange]] .= fieldfunction(coord)
         end
