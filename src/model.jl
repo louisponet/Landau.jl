@@ -146,6 +146,7 @@ dofhandler(model::AbstractModel) =
 boundaryconds(model::AbstractModel) =
 	landau_model(model).boundaryconds
 
+#TODO do we need drange?
 function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
     drange = JuAFEM.dof_range(dh, fieldsym)
     offset = JuAFEM.field_offset(dh, fieldsym)
@@ -165,4 +166,50 @@ function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
             dofvector[globaldofs[noderange]] .= fieldfunction(coord)
         end
     end
+end
+
+NearestNeighbors.BallTree(grid::JuAFEM.Grid) =
+    BallTree(map(x -> mean(map(y-> grid.nodes[y].x, x.nodes)), grid.cells))
+
+NearestNeighbors.BallTree(dofhandler::JuAFEM.DofHandler) = BallTree(dofhandler.grid) 
+NearestNeighbors.BallTree(m::LandauModel) = BallTree(m.dofhandler)
+
+function JuAFEM.function_value(dofhandler::DofHandler{dim, C, T}, alldofs, point::Vec, tree) where {dim, C, T}
+    cellids = knn(tree, point, 4)[1]
+    cell_coords = zeros(Vec{dim, T}, JuAFEM.nnodes(C))
+    best = typemax(T)
+    bestid = 0
+    for id in cellids
+        JuAFEM.cellcoords!(cell_coords, dofhandler, id)
+        s = mapreduce(x -> norm(point - x), +, cell_coords)
+        if s < best
+            best = s
+            bestid = id
+        end
+    end
+    JuAFEM.cellcoords!(cell_coords, dofhandler, bestid)
+    cdofs = alldofs[celldofs(dofhandler, bestid)]
+    r = point - cell_coords[1]
+    cell_param = [cell_coords[2]-cell_coords[1] cell_coords[3]-cell_coords[1] cell_coords[4]-cell_coords[1]]
+    quad_point = Vec{3}(inv(cell_param) * r)
+
+    vals = [zero(Vec{d, typeof(dofhandler).parameters[end]}) for d in dofhandler.field_dims]
+    for (i, (d, interp, drange)) in enumerate(zip(dofhandler.field_dims, dofhandler.field_interpolations, dof_range.((dofhandler,), dofhandler.field_names) ))
+        for base_func in 1:getnbasefunctions(interp)
+            vals[i] += Vec{d}(JuAFEM.value(interp, base_func, quad_point) * cdofs[drange[(base_func-1) * d + 1:base_func * d]])
+        end
+    end
+    return vals
+end
+JuAFEM.function_value(m::LandauModel, point::Vec, tree) = function_value(m.dofhandler, m.dofs, point, tree)
+
+## DATA EXTRACTION
+extract_data(m::LandauModel, points::Vector{Vec}, tree = BallTree(m)) = function_value.((m,), points, (tree,))
+
+function extract_data_line(m::LandauModel, start::V, stop::V, length::Int, args...) where {V<:Vec}
+    points = V[]
+    for (x, y, z) in zip(range(start[1], stop[1], length=length), range(start[2], stop[2], length=length), range(start[3], stop[4], length=length))
+        push!(points, V(x, y, z))
+    end
+    return extract_data(m, points, args...)
 end

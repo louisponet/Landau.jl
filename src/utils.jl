@@ -29,36 +29,3 @@ function dofnodes(dh::DofHandler{DIM, N, T} where N) where {DIM, T}
     end
     return out
 end
-
-alldofs(d::DofNode) = vcat(values(d.dofs)...)
-
-line_intersect(p1, p2, p3) = 0.99999 <= dot(normalize(p3 - p1), normalize(p2 - p1)) <= 1.000001
-
-function extract_data(model, var_sym, p1::Vec{3, Float64}, p2::Vec{3, Float64}, dofs=model.dofs)
-	dnodes = dofnodes(model.dofhandler)
-	out = []
-	xyz = []
-	for d in dnodes
-		if line_intersect(p1, p2, d.coord)
-			push!(out, dofs[d.dofs[var_sym]])
-			push!(xyz, d.coord)
-		end
-	end
-	return out, xyz
-end
-
-plane_intersect(origin, up, right, p) = abs(dot(normalize(p - origin), cross(normalize(up - origin), normalize(right - origin)))) < 1e-5
-
-function extract_data(model, var_sym, origin, up::Vec{3, Float64}, right::Vec{3, Float64}, dofs=model.dofs)
-	dnodes = dofnodes(model.dofhandler)
-	out = []
-	xyz = []
-	for d in dnodes
-		if plane_intersect(origin, up, right, d.coord)
-			push!(out, dofs[d.dofs[var_sym]])
-			push!(xyz, d.coord)
-		end
-	end
-	return out, xyz
-end
-

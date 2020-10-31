@@ -6,6 +6,7 @@ module Landau
     using LinearAlgebra
     using SparseArrays
     using ForwardDiff
+    using NearestNeighbors
     
     include("utils.jl")
     include("model.jl")
@@ -17,4 +18,5 @@ module Landau
     export startingconditions!
     export DofNode, dofnodes
     export construct_stencils
+    export extract_data, extract_data_line
 end # module
