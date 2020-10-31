@@ -29,3 +29,8 @@ function dofnodes(dh::DofHandler{DIM, N, T} where N) where {DIM, T}
     end
     return out
 end
+
+function Base.range(v1::Vec{d}, v2::Vec{d}, args...; kwargs...) where {d}
+    ranges = map(i -> range(v1[i], v2[i], args...; kwargs...), 1:d)
+    return map(x ->Vec(x...), zip(ranges...))
+end
