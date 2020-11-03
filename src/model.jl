@@ -201,10 +201,9 @@ function JuAFEM.function_value(dofhandler::DofHandler{dim, C, T}, alldofs, point
     end
     return NamedTuple{(dofhandler.field_names...,)}((vals...,))
 end
-JuAFEM.function_value(m::LandauModel, point::Vec, tree) = function_value(m.dofhandler, m.dofs, point, tree)
 
 ## DATA EXTRACTION
-extract_data(m::LandauModel, points::Vector{<:Vec}, tree = BallTree(m)) = function_value.((m,), points, (tree,))
+extract_data(m::LandauModel, points::Vector{<:Vec}, dofs = m.dofs, tree = BallTree(m)) = function_value.((m.dofhandler,), (dofs,), points, (tree,))
 
 extract_data_line(m::LandauModel, start::Vec, stop::Vec, length::Int, args...) =
     extract_data(m, range(start, stop, length=length) , args...)
