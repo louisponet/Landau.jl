@@ -191,6 +191,29 @@ function startingconditions!(dofvector, dh, fieldsym, fieldfunction)
     end
 end
 
+function Base.show(io::IO, ::MIME"text/plain", model::LandauModel)
+    println(io, "LandauModel")
+    println(io, "  Fields:")
+    dh = model.dofhandler
+    for i in 1:JuAFEM.nfields(dh)
+        println(io, "    ", repr(dh.field_names[i]), ", interpolation: ", dh.field_interpolations[i],", dim: ", dh.field_dims[i])
+    end
+    println(io, "  Dofs per cell: ", JuAFEM.ndofs_per_cell(dh))
+    println(io, "  Total dofs: ", JuAFEM.ndofs(dh))
+    grid = dh.grid
+    print(io, "$(typeof(grid)) with $(JuAFEM.getncells(grid)) ")
+    typestrs = sort!(collect(Set(JuAFEM.celltypes[typeof(x)] for x in grid.cells)))
+    str = join(io, typestrs, '/')
+    println(io, " cells and $(JuAFEM.getnnodes(grid)) nodes")
+
+    energy = F(model.dofs,model)
+    println()
+    println("Total Energy = $energy")
+    t = zeros(length(model.dofs))
+    ∇F!(t, model.dofs, model)
+    print("Gradient norm = $(norm(t))")
+end 
+
 NearestNeighbors.BallTree(grid::JuAFEM.Grid) =
     BallTree(map(x -> mean(map(y-> grid.nodes[y].x, x.nodes)), grid.cells))
 
