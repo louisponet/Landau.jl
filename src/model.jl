@@ -10,13 +10,10 @@ mutable struct ThreadCache{T, DIM, CV <: NamedTuple, EX <: NamedTuple, GC <: Gra
     coords    ::Vector{Vec{DIM, T}}
     cellvalues::CV
     extradata ::EX
-    # cellcache        ::CC
     gradconf  ::GC
     hessconf  ::HC
-    # jacconf   ::JC
     efunc     ::EF
     hessresult::HR
-    # gfunc     ::GF
 end
 
 function ThreadCache(dpc::Int, nodespercell::Int, cellvalues, extradata, element_energy)
@@ -25,15 +22,12 @@ function ThreadCache(dpc::Int, nodespercell::Int, cellvalues, extradata, element
     gradient = zeros(dpc)
     hessian  = zeros(dpc, dpc)
     coords   = zeros(Vec{3}, nodespercell)
-    # cellcache        = CellCache(args...)
     efunc = x -> element_energy(x, cellvalues, extradata)
     gradconf = GradientConfig(efunc, zeros(dpc), Chunk{12}())
 
     hessresult = HessianResult(zeros(dpc))
     hessconf = HessianConfig(efunc, hessresult, zeros(dpc), Chunk{6}())
-    # hessconf = HessianConfig(efunc, zeros(dpc), Chunk{12}())
     return ThreadCache(indices, dofs, gradient, hessian, coords, cellvalues, extradata, gradconf, hessconf, efunc, hessresult)
-    # return ThreadCache(indices, dofs, gradient, hessian, coords, cellvalues, extradata, gradconf, jacconf, efunc, gfunc)
 end
 
 abstract type AbstractModel end
@@ -47,8 +41,30 @@ mutable struct LandauModel{T, DH <: DofHandler, CH <: ConstraintHandler, TC <: T
     threadcaches  ::Vector{TC}
 end
 
-function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, element_function;
-                     boundaryconds = [], elgeom = nothing, gridgeom = nothing, lagrangeorder = 1, quadratureorder= 2) where {DIM, T}
+"""
+    LandauModel(fields::AbstractVector{Tuple{Symbol, Int, Function}},
+                gridsize::NTuple{3, Int},
+                left::Vec{DIM, T},
+                right::Vec{DIM, T},
+                element_function::Function;
+                boundaryconds = [],
+                elgeom = nothing,
+                gridgeom = nothing,
+                lagrangeorder = 1,
+                quadratureorder= 2) where {DIM, T}
+
+Creates a LandauModel, holding all the information necessary for energy minimization and further post-processing. 
+"""
+function LandauModel(fields::AbstractVector{Tuple{Symbol, Int, Function}},
+                     gridsize::NTuple{3, Int},
+                     left::Vec{DIM, T},
+                     right::Vec{DIM, T},
+                     element_function::Function;
+                     boundaryconds = [],
+                     elgeom = nothing,
+                     gridgeom = nothing,
+                     lagrangeorder = 1,
+                     quadratureorder= 2) where {DIM, T}
     if elgeom == nothing; elgeom = RefTetrahedron end
     if gridgeom == nothing
         if DIM==3
@@ -63,17 +79,13 @@ function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, el
     end
 
     grid = generate_grid(gridgeom, gridsize, left, right)
-    # grid = generate_grid(Tetrahedron, gridsize, left, right)
     bleirgh, colors = JuAFEM.create_coloring(grid)
 
     qr  = QuadratureRule{DIM, elgeom}(quadratureorder)
     interpolation = Lagrange{DIM, elgeom, lagrangeorder}()
     geominterp = Lagrange{DIM, elgeom, lagrangeorder}()
-    # cvu = CellVectorValues(qr, interpolation)
-    # cvP = CellVectorValues(qr, interpolation)
     dh = DofHandler(grid)
     for f in fields
-        # push!(dh, f[1], f[2])
         push!(dh, f[1], f[2], interpolation)
     end
 
@@ -107,13 +119,19 @@ function LandauModel(fields, gridsize, left::Vec{DIM, T}, right::Vec{DIM, T}, el
     apply!(dofvec, bdcs_)
     dpc = ndofs_per_cell(dh)
     cpc = length(dh.grid.cells[1].nodes)
+
+    extradata = (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges) 
     #TODO generalize
-    caches = [ThreadCache(dpc, cpc, deepcopy(cellvalues), (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges), element_function) for t=1:Threads.nthreads()]
+    caches = [ThreadCache(dpc, cpc, deepcopy(cellvalues), extradata, element_function) for t=1:Threads.nthreads()]
 	dnodes = dofnodes(dh)
     LandauModel(dofvec, dh, dnodes, bdcs_, colors, caches)
 end
 
-#To create a new model using everything from the old one except for the element_potential with the params already set
+"""
+    LandauModel(model::LandauModel, element_potential::Function)
+    
+To create a new model using everything from the old one except for the new `element_potential`.
+"""
 LandauModel(model::LandauModel, element_potential::Function) =
 	LandauModel(model.dofs,
                 model.dofhandler,
@@ -122,9 +140,14 @@ LandauModel(model::LandauModel, element_potential::Function) =
                 model.threadindices,
                 [ThreadCache(length(t.dofs), length(t.coords), t.cellvalues, t.extradata, element_potential) for t in model.threadcaches])
 
-function vtk_save(path, model::LandauModel, up=model.dofs)
+"""
+    vtk_save(path::AbstractString, model::LandauModel, dofs::AbstractVector=model.dofs)
+
+Saves the `dofs` in a format readable by Paraview.
+"""
+function vtk_save(path::AbstractString, model::LandauModel, dofs::AbstractVector=model.dofs)
     vtkfile = vtk_grid(path, model.dofhandler)
-    vtk_point_data(vtkfile, model.dofhandler, up)
+    vtk_point_data(vtkfile, model.dofhandler, dofs)
     vtk_save(vtkfile)
 end
 
