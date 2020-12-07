@@ -1,4 +1,3 @@
-using Revise
 using Landau
 using LinearAlgebra
 # Following: [Marton, P., & Hlinka, J. (2010). https://doi.org/10.1103/PhysRevB.81.144125]

@@ -7,7 +7,7 @@ end
 macro assemble!(innerbody)
     esc(quote
         dofhandler = model.dofhandler
-        for indices in model.threadindices
+        @inbounds for indices in model.threadindices
             Threads.@threads for i in indices
                 cache     = model.threadcaches[threadid()]
                 eldofs    = cache.dofs
@@ -16,6 +16,7 @@ macro assemble!(innerbody)
                     cache.coords[j] = dofhandler.grid.nodes[nodeids[j]].x
                 end
                 map(x -> reinit!(x, cache.coords), cache.cellvalues)
+                
                 celldofs!(cache.indices, dofhandler, i)
                 for j=1:length(cache.dofs)
                     eldofs[j] = dofvector[cache.indices[j]]
@@ -37,7 +38,7 @@ end
 function ∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::LandauModel{T}) where {T}
     fill!(∇f, zero(T))
     @assemble! begin
-        ForwardDiff.gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
+        ForwardDiff.gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf, Val{false}())
         @inbounds assemble!(∇f, cache.indices, cache.gradient)
     end
 end
@@ -72,7 +73,7 @@ function ∇F!(∇f::Vector{T}, dofvector::Vector{T}, model::LandauModel{T}, for
     fill!(∇f, zero(T))
     @assemble! begin
         force!(cache, nodeids, forcevec)
-        ForwardDiff.gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf)
+        ForwardDiff.gradient!(cache.gradient, cache.efunc, eldofs, cache.gradconf, Val{false}())
         @inbounds assemble!(∇f, cache.indices, cache.gradient)
     end
 end

@@ -91,23 +91,30 @@ function LandauModel(fields::AbstractVector{Tuple{Symbol, Int, Function}},
 
     close!(dh)
     dofvec = zeros(ndofs(dh))
-
     uranges = UnitRange[]
+    dims = Int[]
     cvs = CellValues[] 
     for field in fields
         push!(uranges, dof_range(dh, field[1]))
-        if field[2] > 1
-            push!(cvs, CellVectorValues(qr, Lagrange{field[2], elgeom, lagrangeorder}(), geominterp))
-        else
-            push!(cvs, CellScalarValues(qr, interpolation, geominterp))
+        dim_id = findfirst(x -> x == field[2], dims)
+        if dim_id === nothing
+            push!(dims, field[2])
+            if field[2] > 1
+                push!(cvs, CellVectorValues(qr, Lagrange{field[2], elgeom, lagrangeorder}(), geominterp))
+            else
+                push!(cvs, CellScalarValues(qr, interpolation, geominterp))
+            end
         end
             
         if length(field) == 3
             startingconditions!(dofvec, dh, field[1], field[3])
         end
     end
+    
     ranges = NamedTuple{(dh.field_names...,)}(uranges)
-    cellvalues = NamedTuple{(dh.field_names...,)}(cvs)
+
+    cvs_names = [Symbol("D$i") for i in dims]
+    
 
     bdcs_ = ConstraintHandler(dh)
     for bdc in boundaryconds
@@ -120,9 +127,10 @@ function LandauModel(fields::AbstractVector{Tuple{Symbol, Int, Function}},
     dpc = ndofs_per_cell(dh)
     cpc = length(dh.grid.cells[1].nodes)
 
-    extradata = (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges) 
+    extradata = (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges)
     #TODO generalize
-    caches = [ThreadCache(dpc, cpc, deepcopy(cellvalues), extradata, element_function) for t=1:Threads.nthreads()]
+    celvals = NamedTuple{(cvs_names...,)}(cvs)
+    caches = [ThreadCache(dpc, cpc, deepcopy(celvals), extradata, element_function) for t=1:Threads.nthreads()]
 	dnodes = dofnodes(dh)
     LandauModel(dofvec, dh, dnodes, bdcs_, colors, caches)
 end
