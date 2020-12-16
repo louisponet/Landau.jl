@@ -130,7 +130,7 @@ function LandauModel(fields::AbstractVector{Tuple{Symbol, Int, Function}},
     extradata = (force=zeros(T, DIM*cpc), Edepol=zeros(T, DIM*cpc), ranges=ranges)
     #TODO generalize
     celvals = NamedTuple{(cvs_names...,)}(cvs)
-    caches = [ThreadCache(dpc, cpc, deepcopy(celvals), extradata, element_function) for t=1:Threads.nthreads()]
+    caches = [ThreadCache(dpc, cpc, deepcopy(celvals), deepcopy(extradata), element_function) for t=1:Threads.nthreads()]
 	dnodes = dofnodes(dh)
     LandauModel(dofvec, dh, dnodes, bdcs_, colors, caches)
 end
